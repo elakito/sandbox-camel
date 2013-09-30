@@ -39,6 +39,7 @@
         </camel.osgi.export.pkg>
         <camel.osgi.import.pkg>
             !org.apache.camel.component.websocket2.*,
+            javax.servlet*;version="2.5",
             org.apache.catalina;resolution:=optional,
             org.apache.catalina.comet;resolution:=optional,
             org.eclipse.jetty.continuation;version="[7.6,8.2)";resolution:=optional,
