@@ -40,7 +40,6 @@ public class WsProducerConsumerTest extends CamelTestSupport {
         server.setHandler(context);
  
         messages = new ArrayList<String>();
-        server.setHandler(context);
         ServletHolder servletHolder = new ServletHolder(new TestServlet(messages));
         context.addServlet(servletHolder, "/*");
         
