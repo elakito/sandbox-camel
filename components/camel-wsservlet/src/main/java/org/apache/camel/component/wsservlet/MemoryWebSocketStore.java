@@ -72,7 +72,7 @@ public class MemoryWebSocketStore implements WebSocketStore {
     public void removeWebSocket(WebSocket websocket) {
         Object obj = keys.remove(websocket);
         if (obj != null) {
-            keys.remove(obj);
+            values.remove(obj);
         }
         LOG.debug("removed websocket {}", websocket);
     }
