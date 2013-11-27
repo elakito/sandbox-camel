@@ -21,11 +21,7 @@
   <parent>
     <groupId>org.apache.camel</groupId>
     <artifactId>components</artifactId>
-<!--
     <version>2.13-SNAPSHOT</version>
--->
-    <version>2.11.1</version>
-
   </parent>
 
   <artifactId>camel-ws</artifactId>
@@ -36,9 +32,6 @@
   <properties>
     <camel.osgi.export.pkg>org.apache.camel.component.ws.*</camel.osgi.export.pkg>
     <camel.osgi.export.service>org.apache.camel.spi.ComponentResolver;component=ws</camel.osgi.export.service>
-    <!-- when using camel-2.11.x -->
-    <netty3-version>3.7.0.Final</netty3-version>
-
   </properties>
 
   <dependencies>

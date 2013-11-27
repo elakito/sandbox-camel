@@ -31,6 +31,7 @@ public class WebsocketProducer extends DefaultProducer {
         log.debug("Sending to {}", message);
         if (getEndpoint().isSendToAll()) {
             log.debug("Sending to all -> {}", message);
+	    //TODO this sequential sending is temporary. consider using atmosphere's broadcast or async send
             for (WebSocket websocket : getEndpoint().getWebSocketStore().getAllWebSockets()) {
                 sendMessage(websocket, message);
             }
