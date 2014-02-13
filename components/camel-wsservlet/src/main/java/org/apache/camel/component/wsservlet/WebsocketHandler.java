@@ -6,22 +6,20 @@ import java.util.UUID;
 import org.atmosphere.cpr.AtmosphereConfig;
 import org.atmosphere.cpr.AtmosphereRequest;
 import org.atmosphere.websocket.WebSocket;
-import org.atmosphere.websocket.WebSocketHandler;
 import org.atmosphere.websocket.WebSocketProcessor.WebSocketException;
 import org.atmosphere.websocket.WebSocketProtocol;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class WebsocketHandler implements WebSocketProtocol {
-    private static final transient Logger LOG = LoggerFactory.getLogger(WebSocketHandler.class);
+    private static final transient Logger LOG = LoggerFactory.getLogger(WebsocketHandler.class);
     
-    private WebsocketConsumer consumer;
-    private WebSocketStore store;
+    protected WebsocketConsumer consumer;
+    protected WebSocketStore store;
 
     @Override
     public void configure(AtmosphereConfig config) {
-            // TODO Auto-generated method stub
-            
+        // TODO Auto-generated method stub
     }
     
     @Override
@@ -56,8 +54,18 @@ public class WebsocketHandler implements WebSocketProtocol {
     
     @Override
     public List<AtmosphereRequest> onMessage(WebSocket webSocket, byte[] data, int offset, int length) {
-        // TODO Auto-generated method stub
-        throw new RuntimeException("not implemented");
+        LOG.info("processing byte message {}", data);
+        String connectionKey = store.getConnectionKey(webSocket);
+        if (length < data.length) {
+            // create a copy that contains the relevant section as camel expects bytes with offset.
+            // alternatively, we could pass a BAIS reading this byte array from the offset.
+            byte[] rawdata = data;
+            data = new byte[length];
+            System.arraycopy(rawdata, offset, data, 0, length);
+        }
+        consumer.sendMessage(connectionKey, data);
+        LOG.info("byte message sent");
+        return null;
     }
 
     public void setConsumer(WebsocketConsumer consumer) {

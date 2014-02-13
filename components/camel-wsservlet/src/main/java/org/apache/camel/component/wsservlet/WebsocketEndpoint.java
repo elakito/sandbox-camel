@@ -23,6 +23,7 @@ public class WebsocketEndpoint extends ServletEndpoint {
     private static final transient Logger LOG = LoggerFactory.getLogger(WebsocketEndpoint.class);
     private WebSocketStore store;
     private boolean sendToAll;
+    private boolean useStreaming;
     
     public WebsocketEndpoint(String endPointURI, WebsocketComponent component, URI httpUri, HttpClientParams params, HttpConnectionManager httpConnectionManager,
                              HttpClientConfigurer clientConfigurer) throws URISyntaxException {
@@ -74,6 +75,21 @@ public class WebsocketEndpoint extends ServletEndpoint {
         this.sendToAll = sendToAll;
     }
     
+    /**
+     * @return the useStreaming
+     */
+    public boolean isUseStreaming() {
+        return useStreaming;
+    }
+
+    /**
+     * @param useStreaming the useStreaming to set
+     */
+    public void setUseStreaming(boolean useStreaming) {
+        this.useStreaming = useStreaming;
+    }
+
+
     WebSocketStore getWebSocketStore() {
         return store;
     }

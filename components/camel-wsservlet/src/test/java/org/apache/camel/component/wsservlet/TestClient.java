@@ -18,6 +18,7 @@ package org.apache.camel.component.wsservlet;
 
 import com.ning.http.client.AsyncHttpClient;
 import com.ning.http.client.websocket.WebSocket;
+import com.ning.http.client.websocket.WebSocketByteListener;
 import com.ning.http.client.websocket.WebSocketTextListener;
 import com.ning.http.client.websocket.WebSocketUpgradeHandler;
 
@@ -35,6 +36,7 @@ public class TestClient {
     private static final Logger LOG = LoggerFactory.getLogger(TestClient.class);
     
     private List<String> received;
+    private List<byte[]> receivedBytes;
     private CountDownLatch latch;
     private AsyncHttpClient client;
     private WebSocket websocket;
@@ -42,6 +44,7 @@ public class TestClient {
     
     public TestClient(String url, int count) {
         this.received = new ArrayList<String>();
+        this.receivedBytes = new ArrayList<byte[]>();
         this.latch = new CountDownLatch(count);
         this.client = new AsyncHttpClient();
         this.url = url;
@@ -50,37 +53,15 @@ public class TestClient {
     public void connect() throws InterruptedException, ExecutionException, IOException {
         websocket = client.prepareGet(url).execute(
             new WebSocketUpgradeHandler.Builder()
-            .addWebSocketListener(new WebSocketTextListener() {
-                @Override
-                public void onMessage(String message) {
-                    received.add(message);
-                    LOG.info("[ws] received --> " + message);
-                    latch.countDown();
-                }
-                
-                @Override
-                public void onFragment(String fragment, boolean last) {
-                }
-                
-                @Override
-                public void onOpen(WebSocket websocket) {
-                    LOG.info("[ws] opened");
-                }
-                
-                @Override
-                public void onClose(WebSocket websocket) {
-                    LOG.info("[ws] closed");
-                }
-                
-                @Override
-                public void onError(Throwable t) {
-                    LOG.error("[ws] error", t);
-                }
-            }).build()).get();
+            .addWebSocketListener(new TestWebSocketListener()).build()).get();
     }
 
     public void sendTextMessage(String message) {
         websocket.sendTextMessage(message);
+    }
+
+    public void sendBytesMessage(byte[] message) {
+        websocket.sendMessage(message);
     }
 
     public boolean await(int secs) throws InterruptedException {
@@ -91,9 +72,55 @@ public class TestClient {
         return received;
     }
 
+    public List<byte[]> getReceivedBytes() {
+        return receivedBytes;
+    }
+
     public void close() {
         websocket.close();
         client.close();
     }
 
+    private class TestWebSocketListener implements WebSocketTextListener, WebSocketByteListener {
+
+        @Override
+        public void onOpen(WebSocket websocket) {
+            LOG.info("[ws] opened");
+        }
+
+        @Override
+        public void onClose(WebSocket websocket) {
+            LOG.info("[ws] closed");
+        }
+
+        @Override
+        public void onError(Throwable t) {
+            LOG.error("[ws] error", t);
+        }
+
+        @Override
+        public void onMessage(byte[] message) {
+            receivedBytes.add(message);
+            LOG.info("[ws] received bytes --> " + message);
+            latch.countDown();
+        }
+
+        @Override
+        public void onFragment(byte[] fragment, boolean last) {
+            // TODO Auto-generated method stub
+        }
+
+        @Override
+        public void onMessage(String message) {
+            received.add(message);
+            LOG.info("[ws] received --> " + message);
+            latch.countDown();
+        }
+
+        @Override
+        public void onFragment(String fragment, boolean last) {
+            // TODO Auto-generated method stub
+        }
+        
+    }
 }

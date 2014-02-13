@@ -3,15 +3,25 @@
  */
 package org.apache.camel.component.wsservlet;
 
+import java.io.InputStream;
+import java.io.Reader;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 import org.apache.camel.Exchange;
 import org.apache.camel.Message;
 import org.apache.camel.impl.DefaultProducer;
 import org.atmosphere.websocket.WebSocket;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  */
 public class WebsocketProducer extends DefaultProducer {
+    private static final transient Logger LOG = LoggerFactory.getLogger(WebsocketProducer.class);
+
+    private static ExecutorService executor = Executors.newSingleThreadExecutor();
     
     public WebsocketProducer(WebsocketEndpoint endpoint) {
         super(endpoint);
@@ -26,14 +36,41 @@ public class WebsocketProducer extends DefaultProducer {
     public void process(Exchange exchange) throws Exception {
         Message in = exchange.getIn();
         //TODO support binary data
-        String message = in.getMandatoryBody(String.class);
-
+        Object message = in.getBody();
+        if (message == null) {
+            LOG.info("Ignoring a null message");
+            return;
+        }
+        
+        if (!(message instanceof String || message instanceof byte[] 
+            || message instanceof Reader || message instanceof InputStream)) {
+            // fallback to use String
+            if (LOG.isInfoEnabled()) {
+                LOG.info("Using String for unexpected message type {} ", message.getClass());
+            }
+            message = in.getBody(String.class);    
+        }
+        
+        // REVISIT Reader and InputStream handling at Producer 
+        // special conversion for Reader and InputStream for now 
+        if (message instanceof Reader) {
+            message = in.getBody(String.class);
+        } else if (message instanceof InputStream) {
+            message = in.getBody(byte[].class);
+        }
+        
         log.debug("Sending to {}", message);
         if (getEndpoint().isSendToAll()) {
             log.debug("Sending to all -> {}", message);
-	    //TODO this sequential sending is temporary. consider using atmosphere's broadcast or async send
-            for (WebSocket websocket : getEndpoint().getWebSocketStore().getAllWebSockets()) {
-                sendMessage(websocket, message);
+	    //TODO consider using atmosphere's broadcast or a more configurable async send
+            for (final WebSocket websocket : getEndpoint().getWebSocketStore().getAllWebSockets()) {
+                final Object msg = message;
+                executor.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        sendMessage(websocket, msg);
+                    }
+                });
             }
         } else {
             // look for connection key and get Websocket
@@ -49,11 +86,18 @@ public class WebsocketProducer extends DefaultProducer {
         }
     }
 
-    private void sendMessage(WebSocket websocket, String message) {
+    private void sendMessage(WebSocket websocket, Object message) {
         try {
-            websocket.write(message);
+            if (message instanceof String) {
+                websocket.write((String)message);
+            } else if (message instanceof byte[]) {
+                websocket.write((byte[])message, 0, ((byte[])message).length);
+            } else {
+                // this should not happen unless one of the supported types is missing above.
+                LOG.error("unexpected message type {}", message == null ? null : message.getClass());
+            }
         } catch (Exception e) {
-            e.printStackTrace();
+            LOG.error("Error when writing to websocket", e);
         }
     }
 }

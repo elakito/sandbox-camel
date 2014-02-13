@@ -46,7 +46,7 @@
             *
         </camel.osgi.import.pkg>
         <camel.osgi.export.service>org.apache.camel.spi.ComponentResolver;component=wsservlet</camel.osgi.export.service>
-        <atmosphere-version>2.1.0-RC1</atmosphere-version>  
+        <atmosphere-version>2.1.0</atmosphere-version>  
         <geronimo-servlet-spec-version>1.0</geronimo-servlet-spec-version>
     </properties>
 

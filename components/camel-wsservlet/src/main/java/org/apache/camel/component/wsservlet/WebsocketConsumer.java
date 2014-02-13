@@ -18,11 +18,15 @@ import org.atmosphere.cpr.AtmosphereFramework;
 import org.atmosphere.cpr.AtmosphereRequest;
 import org.atmosphere.cpr.AtmosphereResponse;
 import org.atmosphere.websocket.WebSocketProtocol;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  */
 public class WebsocketConsumer extends ServletConsumer {
+    private static final transient Logger LOG = LoggerFactory.getLogger(WebsocketConsumer.class);
+    
     private AtmosphereFramework framework;
     
     public WebsocketConsumer(WebsocketEndpoint endpoint, Processor processor) {
@@ -31,14 +35,17 @@ public class WebsocketConsumer extends ServletConsumer {
 
         framework.setUseNativeImplementation(false);
         framework.addInitParameter(ApplicationConfig.WEBSOCKET_SUPPORT, "true");
-        framework.addInitParameter(ApplicationConfig.WEBSOCKET_PROTOCOL, WebsocketHandler.class.getName());
+        framework.addInitParameter(ApplicationConfig.WEBSOCKET_PROTOCOL, 
+            endpoint.isUseStreaming() ? WebsocketStreamHandler.class.getName() : WebsocketHandler.class.getName());
         framework.init();
         
         WebSocketProtocol wsp = framework.getWebSocketProtocol();
-        if (!(wsp instanceof WebsocketHandler)) {
-            //TODO throw exception
+        if (wsp instanceof WebsocketHandler) {
+            ((WebsocketHandler)wsp).setConsumer(this);            
+        } else {
+            LOG.error("unexpected WebSocketHandler: {}", wsp);
+            //TODO if this really happens, we should throw an exception.
         }
-        ((WebsocketHandler)wsp).setConsumer(this);
     }
 
     @Override
@@ -50,8 +57,7 @@ public class WebsocketConsumer extends ServletConsumer {
         framework.doCometSupport(AtmosphereRequest.wrap(request), AtmosphereResponse.wrap(response));
     }
 
-    public void sendMessage(final String connectionKey, final String message) {
-
+    public void sendMessage(final String connectionKey, Object message) {
         final Exchange exchange = getEndpoint().createExchange();
 
         // set header and body
