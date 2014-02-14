@@ -57,7 +57,7 @@ public class WebsocketHandler implements WebSocketProtocol {
         LOG.info("processing byte message {}", data);
         String connectionKey = store.getConnectionKey(webSocket);
         if (length < data.length) {
-            // create a copy that contains the relevant section as camel expects bytes with offset.
+            // create a copy that contains the relevant section as camel expects bytes without offset.
             // alternatively, we could pass a BAIS reading this byte array from the offset.
             byte[] rawdata = data;
             data = new byte[length];
