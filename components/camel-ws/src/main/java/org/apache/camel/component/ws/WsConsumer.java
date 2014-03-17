@@ -44,12 +44,19 @@ public class WsConsumer extends DefaultConsumer {
         return (WsEndpoint) super.getEndpoint();
     }
 
-    public void sendMessage(final String message) {
+    public void sendMessage(String message) {
+        sendMessageInternal(message);
+    }
 
+    public void sendMessage(byte[] message) {
+        sendMessageInternal(message);
+    }
+    
+    private void sendMessageInternal(Object message) {
         final Exchange exchange = getEndpoint().createExchange();
 
-        // set header and body
-//        exchange.getIn().setHeader(WsConstants.CONNECTION_KEY, connectionKey);
+        //TODO may set some headers with some meta info (e.g., socket info, unique-id for correlation purpose, etc0 
+        // set the body
         exchange.getIn().setBody(message);
 
         // send exchange using the async routing engine

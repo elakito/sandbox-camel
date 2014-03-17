@@ -35,7 +35,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 /**
- * @version 
+ *
  */
 public abstract class WsProducerTestBase extends Assert {
     
@@ -45,7 +45,7 @@ public abstract class WsProducerTestBase extends Assert {
     protected ProducerTemplate template;
     protected Server server;
     protected int PORT = AvailablePortFinder.getNextAvailable();
-    protected List<String> messages;
+    protected List<Object> messages;
     
     public void startTestServer() throws Exception {
         // start a simple websocket echo service
@@ -59,13 +59,12 @@ public abstract class WsProducerTestBase extends Assert {
         context.setContextPath("/");
         server.setHandler(context);
  
-        messages = new ArrayList<String>();
+        messages = new ArrayList<Object>();
         server.setHandler(context);
         ServletHolder servletHolder = new ServletHolder(new TestServlet(messages));
         context.addServlet(servletHolder, "/*");
         
         server.start();
-        System.out.println("started");
         assertTrue(server.isStarted());
         
     }
@@ -102,7 +101,17 @@ public abstract class WsProducerTestBase extends Assert {
     
     @Test
     public void testWriteToWebsocket() throws Exception {
-        Exchange exchange = sendMessage(getTargetURL(), TEST_MESSAGE);
+        testWriteToWebsocket(TEST_MESSAGE);
+
+    }
+
+    @Test
+    public void testWriteBytesToWebsocket() throws Exception {
+        testWriteToWebsocket(TEST_MESSAGE.getBytes("utf-8"));
+    }
+
+    private void testWriteToWebsocket(Object message) throws Exception {
+        Exchange exchange = sendMessage(getTargetURL(), message);
         assertNull(exchange.getException());
         
         long towait = 5000;
@@ -114,11 +123,10 @@ public abstract class WsProducerTestBase extends Assert {
             Thread.sleep(500);
         }
         assertEquals(1, messages.size());
-        assertEquals(TEST_MESSAGE, messages.get(0));
-
+        verifyMessage(message, messages.get(0));
     }
 
-    private Exchange sendMessage(String endpointUri, final String msg) {
+    private Exchange sendMessage(String endpointUri, final Object msg) {
         Exchange exchange = template.request(endpointUri, new Processor() {
             public void process(final Exchange exchange) {
                 exchange.getIn().setBody(msg);
@@ -127,4 +135,16 @@ public abstract class WsProducerTestBase extends Assert {
         return exchange;
 
     }
+
+    private void verifyMessage(Object original, Object result) {
+        if (original instanceof String) {
+            assertEquals(original, result);
+        } else if (original instanceof byte[]) {
+            // use string-equals as our bytes are string'able
+            assertEquals(new String((byte[])original), new String((byte[])result));
+        } else {
+            fail("unexpected messages: " + original + " -> " + result);
+        }
+    }
+
 }

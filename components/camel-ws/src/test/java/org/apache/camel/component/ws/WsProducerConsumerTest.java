@@ -25,7 +25,7 @@ public class WsProducerConsumerTest extends CamelTestSupport {
 
     protected Server server;
     protected int PORT = AvailablePortFinder.getNextAvailable();
-    protected List<String> messages;
+    protected List<Object> messages;
     
     public void startTestServer() throws Exception {
         // start a simple websocket echo service
@@ -39,7 +39,7 @@ public class WsProducerConsumerTest extends CamelTestSupport {
         context.setContextPath("/");
         server.setHandler(context);
  
-        messages = new ArrayList<String>();
+        messages = new ArrayList<Object>();
         ServletHolder servletHolder = new ServletHolder(new TestServlet(messages));
         context.addServlet(servletHolder, "/*");
         

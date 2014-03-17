@@ -27,6 +27,7 @@ import javax.net.ssl.SSLContext;
 import com.ning.http.client.AsyncHttpClient;
 import com.ning.http.client.AsyncHttpClientConfig;
 import com.ning.http.client.websocket.WebSocket;
+import com.ning.http.client.websocket.WebSocketByteListener;
 import com.ning.http.client.websocket.WebSocketTextListener;
 import com.ning.http.client.websocket.WebSocketUpgradeHandler;
 
@@ -140,41 +141,8 @@ public class WsEndpoint extends DefaultEndpoint {
     public void connect() throws InterruptedException, ExecutionException, IOException {
         websocket = client.prepareGet(wsUri.toASCIIString()).execute(
             new WebSocketUpgradeHandler.Builder()
-            .addWebSocketListener(new WebSocketTextListener() {
-                @Override
-                public void onMessage(String message) {
-                    LOG.info("received message --> {}", message);
-                    for (WsConsumer consumer : consumers) {
-                        consumer.sendMessage(message);
-                    }
-                }
-                
-                @Override
-                public void onFragment(String fragment, boolean last) {
-                    if (LOG.isInfoEnabled()) {
-                        LOG.info("received fragment({}) --> {}", last, fragment);
-                    }
-                    // for now, ignore the fragment mode
-                }
-                
-                @Override
-                public void onOpen(WebSocket websocket) {
-                    LOG.info("websocket opened");
-                }
-                
-                @Override
-                public void onClose(WebSocket websocket) {
-                    LOG.info("websocket closed");
-                }
-                
-                @Override
-                public void onError(Throwable t) {
-                    //TODO provide a reconnect option for permanent error
-                    LOG.error("websocket on error", t);
-                }
-            }).build()).get();
+                .addWebSocketListener(new WsListener()).build()).get();
     }
-    
     
     @Override
     protected void doStart() throws Exception {
@@ -228,5 +196,57 @@ public class WsEndpoint extends DefaultEndpoint {
     void disconnect(WsConsumer wsConsumer) {
         consumers.remove(wsConsumer);
     }
+    
+    class WsListener implements WebSocketTextListener, WebSocketByteListener {
 
+        @Override
+        public void onOpen(WebSocket websocket) {
+            LOG.info("websocket opened");
+        }
+
+        @Override
+        public void onClose(WebSocket websocket) {
+            LOG.info("websocket closed");
+        }
+
+        @Override
+        public void onError(Throwable t) {
+            LOG.error("websocket on error", t);
+        }
+
+        @Override
+        public void onMessage(byte[] message) {
+            LOG.info("received message --> {}", message);
+            for (WsConsumer consumer : consumers) {
+                consumer.sendMessage(message);
+            }
+        }
+
+        @Override
+        public void onFragment(byte[] fragment, boolean last) {
+            if (LOG.isInfoEnabled()) {
+                LOG.info("received fragment({}) --> {}", last, fragment);
+            }
+            // for now, ignore the fragment mode
+            LOG.warn("fragments currently ignored({}) --> {}", last, fragment);
+        }
+
+        @Override
+        public void onMessage(String message) {
+            LOG.info("received message --> {}", message);
+            for (WsConsumer consumer : consumers) {
+                consumer.sendMessage(message);
+            }
+        }
+
+        @Override
+        public void onFragment(String fragment, boolean last) {
+            if (LOG.isInfoEnabled()) {
+                LOG.info("received fragment({}) --> {}", last, fragment);
+            }
+            // for now, ignore the fragment mode
+            LOG.warn("fragments currently ignored({}) --> {}", last, fragment);
+        }
+        
+    }
 }

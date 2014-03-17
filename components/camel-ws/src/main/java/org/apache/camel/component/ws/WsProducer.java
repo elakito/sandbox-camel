@@ -39,10 +39,17 @@ public class WsProducer extends DefaultProducer {
     @Override
     public void process(Exchange exchange) throws Exception {
         Message in = exchange.getIn();
-        //TODO support binary data
-        String message = in.getMandatoryBody(String.class);
-
-        log.debug("Sending to {}", message);
-        endpoint.getWebSocket().sendTextMessage(message);
+        Object message = in.getBody();
+        log.debug("Sending out {}", message);
+        if (message != null) {
+            if (message instanceof String) {
+                endpoint.getWebSocket().sendTextMessage((String)message);
+            } else if (message instanceof byte[]) {
+                endpoint.getWebSocket().sendMessage((byte[])message);
+            } else {
+                //TODO provide other binding option, for now use the converted string
+                endpoint.getWebSocket().sendTextMessage(in.getMandatoryBody(String.class));
+            }
+        }
     }
 }
