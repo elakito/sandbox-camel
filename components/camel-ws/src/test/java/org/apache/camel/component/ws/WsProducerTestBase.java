@@ -18,7 +18,9 @@ package org.apache.camel.component.ws;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -102,16 +104,25 @@ public abstract class WsProducerTestBase extends Assert {
 
     protected abstract String getTargetURL();
     
+    protected String getTextTestMessage() {
+        return TEST_MESSAGE;
+    }
+
+    protected byte[] getByteTestMessage() throws UnsupportedEncodingException {
+        return TEST_MESSAGE.getBytes("utf-8");
+    }
+    
     @Test
     public void testWriteToWebsocket() throws Exception {
-        testWriteToWebsocket(TEST_MESSAGE);
+        String testMessage = getTextTestMessage();
+        testWriteToWebsocket(testMessage);
         assertEquals(1, messages.size());
-        verifyMessage(TEST_MESSAGE, messages.get(0));
+        verifyMessage(testMessage, messages.get(0));
     }
 
     @Test
     public void testWriteBytesToWebsocket() throws Exception {
-        byte[] testMessageBytes = TEST_MESSAGE.getBytes("utf-8");
+        byte[] testMessageBytes = getByteTestMessage();
         testWriteToWebsocket(testMessageBytes);
         assertEquals(1, messages.size());
         verifyMessage(testMessageBytes, messages.get(0));
@@ -119,8 +130,8 @@ public abstract class WsProducerTestBase extends Assert {
 
     @Test
     public void testWriteStreamToWebsocket() throws Exception {
-        byte[] testMessageBytes = createLongTestMessage();
-        testWriteToWebsocket(new ByteArrayInputStream(testMessageBytes)); //TEST_MESSAGE.getBytes("utf-8")));
+        byte[] testMessageBytes = createLongByteTestMessage();
+        testWriteToWebsocket(new ByteArrayInputStream(testMessageBytes)); 
         assertEquals(1, messages.size());
         verifyMessage(testMessageBytes, messages.get(0));
     }
@@ -177,15 +188,30 @@ public abstract class WsProducerTestBase extends Assert {
         }
     }
 
-    private byte[] createLongTestMessage() throws Exception {
+    protected byte[] createLongByteTestMessage() {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         byte[] bs = TEST_MESSAGE.getBytes();
-        for (int i = 1; i <= 100; i++) {
-            baos.write(Integer.toString(i).getBytes());
-            baos.write(0x20);
-            baos.write(bs);
-            baos.write(';');
+        try {
+            for (int i = 1; i <= 100; i++) {
+                baos.write(Integer.toString(i).getBytes());
+                baos.write(0x20);
+                baos.write(bs);
+                baos.write(';');
+            }
+        } catch (IOException e) {
+            // ignore
         }
         return baos.toByteArray();
+    }
+
+    protected String createLongTextTestMessage() throws Exception {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 1; i <= 100; i++) {
+            sb.append(Integer.toString(i));
+            sb.append(' ');
+            sb.append(TEST_MESSAGE);
+            sb.append(';');
+        }
+        return sb.toString();
     }
 }

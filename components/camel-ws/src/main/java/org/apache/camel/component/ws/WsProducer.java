@@ -29,14 +29,12 @@ import com.ning.http.client.websocket.WebSocket;
  *
  */
 public class WsProducer extends DefaultProducer {
-    private final WsEndpoint endpoint;
     private static final int DEFAULT_STREAM_BUFFER_SIZE = 127;
     
     private int streamBufferSize = DEFAULT_STREAM_BUFFER_SIZE;
 
     public WsProducer(WsEndpoint endpoint) {
         super(endpoint);
-        this.endpoint = endpoint;
     }
 
     @Override
@@ -51,14 +49,14 @@ public class WsProducer extends DefaultProducer {
         log.debug("Sending out {}", message);
         if (message != null) {
             if (message instanceof String) {
-                sendMessage(endpoint.getWebSocket(), (String)message, endpoint.isUseStreaming());
+                sendMessage(getWebSocket(), (String)message, ((WsEndpoint)getEndpoint()).isUseStreaming());
             } else if (message instanceof byte[]) {
-                sendMessage(endpoint.getWebSocket(), (byte[])message, endpoint.isUseStreaming());
+                sendMessage(getWebSocket(), (byte[])message, ((WsEndpoint)getEndpoint()).isUseStreaming());
             } else if (message instanceof InputStream) {
-                sendStreamMessage(endpoint.getWebSocket(), (InputStream)message);
+                sendStreamMessage(getWebSocket(), (InputStream)message);
             } else {
                 //TODO provide other binding option, for now use the converted string
-                endpoint.getWebSocket().sendTextMessage(in.getMandatoryBody(String.class));
+                getWebSocket().sendTextMessage(in.getMandatoryBody(String.class));
             }
         }
     }
@@ -83,12 +81,24 @@ public class WsProducer extends DefaultProducer {
     private void sendMessage(WebSocket webSocket, byte[] msg, boolean streaming) {
         if (streaming) {
             int p = 0;
+            byte[] writebuf = new byte[streamBufferSize];
             while (p < msg.length) {
                 if (msg.length - p < streamBufferSize) {
-                    webSocket.stream(msg, p, msg.length - p, true);
+                    int rest = msg.length - p;
+                    // bug in grizzly? we need to create a byte array with the exact length
+                    //webSocket.stream(msg, p, rest, true);
+                    System.arraycopy(msg, p, writebuf, 0, rest);
+                    byte[] tmpbuf = new byte[rest];
+                    System.arraycopy(writebuf, 0, tmpbuf, 0, rest);
+                    webSocket.stream(tmpbuf, 0, rest, true);
+                    // ends
                     p = msg.length;
                 } else {
-                    webSocket.stream(msg, p, streamBufferSize, false);
+                    // bug in grizzly? we need to create a byte array with the exact length
+                    //webSocket.stream(msg, p, streamBufferSize, false);
+                    System.arraycopy(msg, p, writebuf, 0, streamBufferSize);
+                    webSocket.stream(writebuf, 0, streamBufferSize, false);
+                    // ends
                     p += streamBufferSize;
                 }
             }
@@ -115,10 +125,14 @@ public class WsProducer extends DefaultProducer {
                 byte[] tmpbuf = writebuf;
                 writebuf = new byte[wn];
                 System.arraycopy(tmpbuf, 0, writebuf, 0, wn);
-            }
+            } // ends
             webSocket.stream(writebuf, 0, wn, true);
         } finally {
             in.close();
         }
+    }
+    
+    private WebSocket getWebSocket() {
+        return ((WsEndpoint)getEndpoint()).getWebSocket();
     }
 }
