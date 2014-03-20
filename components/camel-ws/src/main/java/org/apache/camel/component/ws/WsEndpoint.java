@@ -16,6 +16,9 @@
  */
 package org.apache.camel.component.ws;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.CharArrayReader;
 import java.io.IOException;
 import java.net.URI;
 import java.util.HashSet;
@@ -26,6 +29,8 @@ import javax.net.ssl.SSLContext;
 
 import com.ning.http.client.AsyncHttpClient;
 import com.ning.http.client.AsyncHttpClientConfig;
+import com.ning.http.client.AsyncHttpProvider;
+import com.ning.http.client.providers.grizzly.GrizzlyAsyncHttpProvider;
 import com.ning.http.client.websocket.WebSocket;
 import com.ning.http.client.websocket.WebSocketByteListener;
 import com.ning.http.client.websocket.WebSocketTextListener;
@@ -44,6 +49,9 @@ import org.slf4j.LoggerFactory;
  */
 public class WsEndpoint extends DefaultEndpoint {
     private static final transient Logger LOG = LoggerFactory.getLogger(WsEndpoint.class);
+
+    private static final boolean GRIZZLY_AVAILABLE = 
+        probeClass("com.ning.http.client.providers.grizzly.GrizzlyAsyncHttpProvider");
     
     private AsyncHttpClient client;
     private AsyncHttpClientConfig clientConfig;
@@ -53,7 +61,17 @@ public class WsEndpoint extends DefaultEndpoint {
     private boolean throwExceptionOnFailure = true;
     private boolean transferException;
     private SSLContextParameters sslContextParameters;
+    private boolean useStreaming;
 
+    private static boolean probeClass(String name) {
+        try {
+            Class.forName(name, true, WsEndpoint.class.getClassLoader());
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+    
     public WsEndpoint(String endpointUri, WsComponent component) {
         super(endpointUri, component);
         this.consumers = new HashSet<WsConsumer>();
@@ -138,6 +156,20 @@ public class WsEndpoint extends DefaultEndpoint {
         this.wsUri = wsUri;
     }
 
+    /**
+     * @return the useStreaming
+     */
+    public boolean isUseStreaming() {
+        return useStreaming;
+    }
+
+    /**
+     * @param useStreaming the useStreaming to set
+     */
+    public void setUseStreaming(boolean useStreaming) {
+        this.useStreaming = useStreaming;
+    }
+
     public void connect() throws InterruptedException, ExecutionException, IOException {
         websocket = client.prepareGet(wsUri.toASCIIString()).execute(
             new WebSocketUpgradeHandler.Builder()
@@ -170,9 +202,14 @@ public class WsEndpoint extends DefaultEndpoint {
             }
             
             if (config == null) {
-                client = new AsyncHttpClient();
-            } else {
+                config = new AsyncHttpClientConfig.Builder().build();
+            }
+            
+            AsyncHttpProvider ahp = getAsyncHttpProvider(config);
+            if (ahp == null) {
                 client = new AsyncHttpClient(config);
+            } else {
+                client = new AsyncHttpClient(ahp, config);
             }
         }
     }
@@ -198,7 +235,9 @@ public class WsEndpoint extends DefaultEndpoint {
     }
     
     class WsListener implements WebSocketTextListener, WebSocketByteListener {
-
+        private ByteArrayOutputStream byteBuffer = new ByteArrayOutputStream();
+        private StringBuffer textBuffer = new StringBuffer();
+        
         @Override
         public void onOpen(WebSocket websocket) {
             LOG.info("websocket opened");
@@ -227,9 +266,25 @@ public class WsEndpoint extends DefaultEndpoint {
             if (LOG.isInfoEnabled()) {
                 LOG.info("received fragment({}) --> {}", last, fragment);
             }
-            // for now, ignore the fragment mode
-            LOG.warn("fragments currently ignored({}) --> {}", last, fragment);
+            // for now, construct a memory based stream. In future, we provide a fragmented stream that can
+            // be consumed before the final fragment is added.
+            synchronized (byteBuffer) {
+                try {
+                    byteBuffer.write(fragment);
+                } catch (IOException e) {
+                    //ignore
+                }
+                if (last) {
+                    //REVIST avoid using baos/bais that waste memory
+                    byte[] msg = byteBuffer.toByteArray();
+                    for (WsConsumer consumer : consumers) {
+                        consumer.sendMessage(new ByteArrayInputStream(msg));
+                    }
+                    byteBuffer.reset();
+                }
+            }
         }
+
 
         @Override
         public void onMessage(String message) {
@@ -244,9 +299,28 @@ public class WsEndpoint extends DefaultEndpoint {
             if (LOG.isInfoEnabled()) {
                 LOG.info("received fragment({}) --> {}", last, fragment);
             }
-            // for now, ignore the fragment mode
-            LOG.warn("fragments currently ignored({}) --> {}", last, fragment);
+            // for now, construct a memory based stream. In future, we provide a fragmented stream that can
+            // be consumed before the final fragment is added.
+            synchronized (textBuffer) {
+                textBuffer.append(fragment);
+                if (last) {
+                    //REVIST avoid using sb/car that waste memory
+                    char[] msg = new char[textBuffer.length()];
+                    textBuffer.getChars(0, msg.length, msg, 0);
+                    for (WsConsumer consumer : consumers) {
+                        consumer.sendMessage(new CharArrayReader(msg));
+                    }
+                    textBuffer.setLength(0);
+                }
+            }
         }
         
+    }
+    
+    protected AsyncHttpProvider getAsyncHttpProvider(AsyncHttpClientConfig config) {
+        if (GRIZZLY_AVAILABLE) {
+            return new GrizzlyAsyncHttpProvider(config);
+        }
+        return null;
     }
 }

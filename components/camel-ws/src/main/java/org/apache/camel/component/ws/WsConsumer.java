@@ -16,6 +16,9 @@
  */
 package org.apache.camel.component.ws;
 
+import java.io.InputStream;
+import java.io.Reader;
+
 import org.apache.camel.AsyncCallback;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
@@ -49,6 +52,14 @@ public class WsConsumer extends DefaultConsumer {
     }
 
     public void sendMessage(byte[] message) {
+        sendMessageInternal(message);
+    }
+    
+    public void sendMessage(InputStream message) {
+        sendMessageInternal(message);
+    }
+
+    public void sendMessage(Reader message) {
         sendMessageInternal(message);
     }
     

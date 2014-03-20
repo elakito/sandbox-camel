@@ -16,15 +16,23 @@
  */
 package org.apache.camel.component.ws;
 
+import java.io.IOException;
+import java.io.InputStream;
+
 import org.apache.camel.Exchange;
 import org.apache.camel.Message;
 import org.apache.camel.impl.DefaultProducer;
+
+import com.ning.http.client.websocket.WebSocket;
 
 /**
  *
  */
 public class WsProducer extends DefaultProducer {
     private final WsEndpoint endpoint;
+    private static final int DEFAULT_STREAM_BUFFER_SIZE = 127;
+    
+    private int streamBufferSize = DEFAULT_STREAM_BUFFER_SIZE;
 
     public WsProducer(WsEndpoint endpoint) {
         super(endpoint);
@@ -43,13 +51,74 @@ public class WsProducer extends DefaultProducer {
         log.debug("Sending out {}", message);
         if (message != null) {
             if (message instanceof String) {
-                endpoint.getWebSocket().sendTextMessage((String)message);
+                sendMessage(endpoint.getWebSocket(), (String)message, endpoint.isUseStreaming());
             } else if (message instanceof byte[]) {
-                endpoint.getWebSocket().sendMessage((byte[])message);
+                sendMessage(endpoint.getWebSocket(), (byte[])message, endpoint.isUseStreaming());
+            } else if (message instanceof InputStream) {
+                sendStreamMessage(endpoint.getWebSocket(), (InputStream)message);
             } else {
                 //TODO provide other binding option, for now use the converted string
                 endpoint.getWebSocket().sendTextMessage(in.getMandatoryBody(String.class));
             }
+        }
+    }
+    
+    private void sendMessage(WebSocket webSocket, String msg, boolean streaming) {
+        if (streaming) {
+            int p = 0;
+            while (p < msg.length()) {
+                if (msg.length() - p < streamBufferSize) {
+                    webSocket.streamText(msg.substring(p), true);
+                    p = msg.length();
+                } else {
+                    webSocket.streamText(msg.substring(p, streamBufferSize), false);
+                    p += streamBufferSize;
+                }
+            }
+        } else {
+            webSocket.sendTextMessage(msg);
+        }
+    }
+    
+    private void sendMessage(WebSocket webSocket, byte[] msg, boolean streaming) {
+        if (streaming) {
+            int p = 0;
+            while (p < msg.length) {
+                if (msg.length - p < streamBufferSize) {
+                    webSocket.stream(msg, p, msg.length - p, true);
+                    p = msg.length;
+                } else {
+                    webSocket.stream(msg, p, streamBufferSize, false);
+                    p += streamBufferSize;
+                }
+            }
+        } else {
+            webSocket.sendMessage(msg);
+        }
+    }
+
+    private void sendStreamMessage(WebSocket webSocket, InputStream in) throws IOException {
+        byte[] readbuf = new byte[streamBufferSize];
+        byte[] writebuf = new byte[streamBufferSize];
+        int rn = 0;
+        int wn = 0;
+        try {
+            while ((rn = in.read(readbuf, 0, readbuf.length)) != -1) {
+                if (wn > 0) {
+                    webSocket.stream(writebuf, 0, writebuf.length, false);
+                }
+                System.arraycopy(readbuf, 0, writebuf, 0, rn);
+                wn = rn;
+            }
+            // a bug in grizzly? we need to create a byte array with the exact length
+            if (wn < writebuf.length) {
+                byte[] tmpbuf = writebuf;
+                writebuf = new byte[wn];
+                System.arraycopy(tmpbuf, 0, writebuf, 0, wn);
+            }
+            webSocket.stream(writebuf, 0, wn, true);
+        } finally {
+            in.close();
         }
     }
 }

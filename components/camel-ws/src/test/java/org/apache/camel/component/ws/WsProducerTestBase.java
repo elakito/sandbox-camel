@@ -16,6 +16,9 @@
  */
 package org.apache.camel.component.ws;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -102,14 +105,26 @@ public abstract class WsProducerTestBase extends Assert {
     @Test
     public void testWriteToWebsocket() throws Exception {
         testWriteToWebsocket(TEST_MESSAGE);
-
+        assertEquals(1, messages.size());
+        verifyMessage(TEST_MESSAGE, messages.get(0));
     }
 
     @Test
     public void testWriteBytesToWebsocket() throws Exception {
-        testWriteToWebsocket(TEST_MESSAGE.getBytes("utf-8"));
+        byte[] testMessageBytes = TEST_MESSAGE.getBytes("utf-8");
+        testWriteToWebsocket(testMessageBytes);
+        assertEquals(1, messages.size());
+        verifyMessage(testMessageBytes, messages.get(0));
     }
 
+    @Test
+    public void testWriteStreamToWebsocket() throws Exception {
+        byte[] testMessageBytes = createLongTestMessage();
+        testWriteToWebsocket(new ByteArrayInputStream(testMessageBytes)); //TEST_MESSAGE.getBytes("utf-8")));
+        assertEquals(1, messages.size());
+        verifyMessage(testMessageBytes, messages.get(0));
+    }
+    
     private void testWriteToWebsocket(Object message) throws Exception {
         Exchange exchange = sendMessage(getTargetURL(), message);
         assertNull(exchange.getException());
@@ -122,8 +137,6 @@ public abstract class WsProducerTestBase extends Assert {
             towait -= 500;
             Thread.sleep(500);
         }
-        assertEquals(1, messages.size());
-        verifyMessage(message, messages.get(0));
     }
 
     private Exchange sendMessage(String endpointUri, final Object msg) {
@@ -137,14 +150,42 @@ public abstract class WsProducerTestBase extends Assert {
     }
 
     private void verifyMessage(Object original, Object result) {
-        if (original instanceof String) {
+        if (original instanceof String && result instanceof String) {
             assertEquals(original, result);
-        } else if (original instanceof byte[]) {
+        } else if (original instanceof byte[] && result instanceof byte[]) {
             // use string-equals as our bytes are string'able
             assertEquals(new String((byte[])original), new String((byte[])result));
+        } else if (original instanceof InputStream) {
+            assertTrue(result instanceof byte[] || result instanceof InputStream);
+            if (result instanceof byte[]) {
+                result = new ByteArrayInputStream((byte[])result);
+            }
+            try {
+                int oc = 0;
+                int or = 0;
+                while (oc != -1) {
+                    oc = ((InputStream)original).read();
+                    or = ((InputStream)result).read();
+                    assertEquals(oc, or);
+                }
+                assertEquals(-1, or);
+            } catch (Exception e) {
+                fail("unable to verify data: " + e);
+            }
         } else {
-            fail("unexpected messages: " + original + " -> " + result);
+            fail("unexpected message type for input " + original + ": " + result);
         }
     }
 
+    private byte[] createLongTestMessage() throws Exception {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        byte[] bs = TEST_MESSAGE.getBytes();
+        for (int i = 1; i <= 100; i++) {
+            baos.write(Integer.toString(i).getBytes());
+            baos.write(0x20);
+            baos.write(bs);
+            baos.write(';');
+        }
+        return baos.toByteArray();
+    }
 }
